@@ -1,0 +1,491 @@
+-- ==========================================
+--        MERGED AUTO-COLLECT SCRIPT
+-- ==========================================
+
+-- Configuration
+local teleportLocation = CFrame.new(823, 100, -2886)
+local holdDuration = 1.6       -- Hold E for 1.6 seconds each time
+local gapDuration = 0.001      -- Gap between holds
+local holdCycles = 2           -- Number of times to hold E
+
+-- Services
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+local placeId = game.PlaceId
+
+-- ==========================================
+--         HEART COLLECT CONFIGURATION
+-- ==========================================
+
+local targetNames = {
+    "Heart_Chocolate",
+    "Cosmic_Fruit",
+    "Volcanic_Fruit",
+    "VolcanicFruit",
+    "Volcanic Fruit",
+    "CosmicFruit",
+    "Cosmic Fruit"
+}
+
+local ignoreList = {"Cube", "Pet", "Rope", "ParticleEmitter", "Attachment"}
+
+-- Track the heart collect connection so we can stop it
+local heartCollectConnection = nil
+local heartCollectActive = false
+
+-- ==========================================
+--         ANTI-AFK CONFIGURATION
+-- ==========================================
+
+local antiAfkActive = false
+local antiAfkThread = nil
+
+-- ==========================================
+--         SCRIPT RESET TRACKING
+-- ==========================================
+
+local scriptConnections = {}
+local scriptThreads = {}
+
+-- ==========================================
+--         CORE FUNCTIONS
+-- ==========================================
+
+local function holdE()
+    for i = 1, holdCycles do
+        print("Hold cycle " .. i .. "/" .. holdCycles .. " - Holding E for " .. holdDuration .. " seconds...")
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+        task.wait(holdDuration)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+        print("Released E")
+        if i < holdCycles then
+            print("Waiting " .. gapDuration .. " seconds before next hold...")
+            task.wait(gapDuration)
+        end
+    end
+    print("Finished all hold cycles!")
+end
+
+local function teleportAndCollect()
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        print("Teleporting to location...")
+        player.Character.HumanoidRootPart.CFrame = teleportLocation
+        task.wait(0.1)
+        holdE()
+    else
+        warn("Character or HumanoidRootPart not found!")
+    end
+end
+
+local function serverHop()
+    local servers = {}
+    local success, err = pcall(function()
+        local req = request({
+            Url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100", placeId)
+        })
+        local body = game:GetService("HttpService"):JSONDecode(req.Body)
+        if body and body.data then
+            for _, server in pairs(body.data) do
+                if server.id ~= game.JobId and server.playing < server.maxPlayers then
+                    table.insert(servers, server.id)
+                end
+            end
+        end
+    end)
+    if success and #servers > 0 then
+        TeleportService:TeleportToPlaceInstance(placeId, servers[math.random(1, #servers)])
+    else
+        TeleportService:Teleport(placeId)
+    end
+end
+
+local function collectItem(model)
+    local prompt = model:FindFirstChildWhichIsA("ProximityPrompt", true)
+    if prompt then
+        print("🔘 Found Prompt: " .. prompt.Name .. " | ACTION: Interact")
+        if prompt.Parent and prompt.Parent:IsA("BasePart") then
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                player.Character.HumanoidRootPart.CFrame = prompt.Parent.CFrame
+            end
+        end
+        if fireproximityprompt then
+            fireproximityprompt(prompt)
+        else
+            prompt.HoldDuration = 0
+            prompt:InputHoldBegin()
+            task.wait(0.1)
+            prompt:InputHoldEnd()
+        end
+        print("✅ Collected!")
+    else
+        warn("❌ No 'E' Prompt found in: " .. model.Name)
+    end
+end
+
+local function startHeartCollect()
+    if heartCollectActive then
+        print("Heart Collect already running.")
+        return
+    end
+
+    heartCollectActive = true
+    print("--- HEART COLLECT ACTIVE ---")
+
+    heartCollectConnection = Workspace.DescendantAdded:Connect(function(obj)
+        if not heartCollectActive then return end
+
+        if obj:IsA("ParticleEmitter") or obj:IsA("Attachment") then return end
+        for _, ignore in pairs(ignoreList) do
+            if string.find(obj.Name, ignore) then return end
+        end
+
+        for _, name in pairs(targetNames) do
+            if string.find(obj.Name, name) then
+                task.wait(0.1)
+
+                if obj:IsA("Model") or obj:IsA("BasePart") then
+                    local target = obj:IsA("Model") and obj.PrimaryPart or obj
+                    if target and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                        player.Character.HumanoidRootPart.CFrame = target.CFrame
+                        task.wait(0.1)
+                        collectItem(obj)
+                    end
+                end
+                break
+            end
+        end
+    end)
+
+    table.insert(scriptConnections, heartCollectConnection)
+end
+
+local function stopHeartCollect()
+    heartCollectActive = false
+    if heartCollectConnection then
+        heartCollectConnection:Disconnect()
+        heartCollectConnection = nil
+        print("--- HEART COLLECT STOPPED ---")
+    end
+end
+
+-- ==========================================
+--         ANTI-AFK FUNCTIONS
+-- ==========================================
+
+local function startAntiAfk()
+    if antiAfkActive then
+        print("Anti-AFK already running.")
+        return
+    end
+
+    antiAfkActive = true
+    print("--- ANTI-AFK ACTIVE ---")
+
+    antiAfkThread = task.spawn(function()
+        while antiAfkActive do
+            task.wait(60)
+            if not antiAfkActive then break end
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+            task.wait(0.1)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+            print("🛡️ Anti-AFK: idle timer reset")
+        end
+    end)
+
+    table.insert(scriptThreads, antiAfkThread)
+end
+
+local function stopAntiAfk()
+    antiAfkActive = false
+    if antiAfkThread then
+        pcall(function() task.cancel(antiAfkThread) end)
+        antiAfkThread = nil
+        print("--- ANTI-AFK STOPPED ---")
+    end
+end
+
+-- ==========================================
+--         RESET ALL SCRIPTS
+-- ==========================================
+
+local function resetAll(screenGui)
+    print("⛔ Resetting all scripts...")
+
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+
+    stopHeartCollect()
+    stopAntiAfk()
+
+    for _, conn in pairs(scriptConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    scriptConnections = {}
+
+    for _, thread in pairs(scriptThreads) do
+        pcall(function() task.cancel(thread) end)
+    end
+    scriptThreads = {}
+
+    if screenGui then
+        screenGui:Destroy()
+    end
+
+    print("✅ All scripts reset and GUI closed.")
+end
+
+-- ==========================================
+--         UI CREATION
+-- ==========================================
+
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local UICorner = Instance.new("UICorner")
+local Title = Instance.new("TextLabel")
+local CollectBtn = Instance.new("TextButton")
+local HeartCollectBtn = Instance.new("TextButton")
+local ServerHopBtn = Instance.new("TextButton")
+local AntiAfkBtn = Instance.new("TextButton")
+local ResetBtn = Instance.new("TextButton")
+local MinimizeBtn = Instance.new("TextButton")
+local CloseBtn = Instance.new("TextButton")
+
+local MinimizedFrame = Instance.new("Frame")
+local MinimizedCorner = Instance.new("UICorner")
+local MinimizedText = Instance.new("TextLabel")
+local RestoreBtn = Instance.new("TextButton")
+
+ScreenGui.Name = "TeleportGui"
+ScreenGui.Parent = CoreGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+MainFrame.BorderSizePixel = 0
+MainFrame.Position = UDim2.new(0.5, -140, 0.5, -155)
+MainFrame.Size = UDim2.new(0, 280, 0, 315)
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+local Shadow = Instance.new("Frame")
+Shadow.Name = "Shadow"
+Shadow.Parent = MainFrame
+Shadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+Shadow.BackgroundTransparency = 0.7
+Shadow.BorderSizePixel = 0
+Shadow.Position = UDim2.new(0, 4, 0, 4)
+Shadow.Size = UDim2.new(1, 0, 1, 0)
+Shadow.ZIndex = 0
+local ShadowCorner = Instance.new("UICorner")
+ShadowCorner.CornerRadius = UDim.new(0, 10)
+ShadowCorner.Parent = Shadow
+
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = MainFrame
+
+Title.Name = "Title"
+Title.Parent = MainFrame
+Title.BackgroundTransparency = 1
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.Font = Enum.Font.GothamBold
+Title.Text = "✨ Auto Collect"
+Title.TextColor3 = Color3.fromRGB(120, 220, 255)
+Title.TextSize = 16
+Title.ZIndex = 2
+
+local function makeButton(parent, text, bgColor, posY, width)
+    width = width or 250
+    local btn = Instance.new("TextButton")
+    btn.Parent = parent
+    btn.BackgroundColor3 = bgColor
+    btn.BorderSizePixel = 0
+    btn.Position = UDim2.new(0, 15, 0, posY)
+    btn.Size = UDim2.new(0, width, 0, 40)
+    btn.Font = Enum.Font.GothamBold
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 14
+    btn.ZIndex = 2
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
+
+    local baseColor = bgColor
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundColor3 = Color3.fromRGB(
+            math.min(baseColor.R * 255 + 20, 255),
+            math.min(baseColor.G * 255 + 20, 255),
+            math.min(baseColor.B * 255 + 20, 255)
+        )
+    end)
+    btn.MouseLeave:Connect(function()
+        btn.BackgroundColor3 = baseColor
+    end)
+    return btn
+end
+
+CollectBtn    = makeButton(MainFrame, "✨ Collect",              Color3.fromRGB(70, 180, 100),   45)
+HeartCollectBtn = makeButton(MainFrame, "💖 Fruit Collect: OFF", Color3.fromRGB(180, 60, 120),   95)
+ServerHopBtn  = makeButton(MainFrame, "🔄 Server Hop",          Color3.fromRGB(80, 120, 200),  145)
+AntiAfkBtn    = makeButton(MainFrame, "🛡️ Anti-AFK: OFF",       Color3.fromRGB(120, 80, 180),  195)
+ResetBtn      = makeButton(MainFrame, "⛔ Reset All Scripts",   Color3.fromRGB(180, 50, 50),   245)
+
+MinimizeBtn.Name = "MinimizeBtn"
+MinimizeBtn.Parent = MainFrame
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
+MinimizeBtn.BorderSizePixel = 0
+MinimizeBtn.Position = UDim2.new(1, -60, 0, 5)
+MinimizeBtn.Size = UDim2.new(0, 25, 0, 25)
+MinimizeBtn.Font = Enum.Font.GothamBold
+MinimizeBtn.Text = "–"
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeBtn.TextSize = 18
+MinimizeBtn.ZIndex = 2
+local minimizeCorner = Instance.new("UICorner")
+minimizeCorner.CornerRadius = UDim.new(0, 5)
+minimizeCorner.Parent = MinimizeBtn
+MinimizeBtn.MouseEnter:Connect(function() MinimizeBtn.BackgroundColor3 = Color3.fromRGB(120, 120, 140) end)
+MinimizeBtn.MouseLeave:Connect(function() MinimizeBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120) end)
+
+CloseBtn.Name = "CloseBtn"
+CloseBtn.Parent = MainFrame
+CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+CloseBtn.BorderSizePixel = 0
+CloseBtn.Position = UDim2.new(1, -30, 0, 5)
+CloseBtn.Size = UDim2.new(0, 25, 0, 25)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Text = "×"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextSize = 18
+CloseBtn.ZIndex = 2
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 5)
+closeCorner.Parent = CloseBtn
+CloseBtn.MouseEnter:Connect(function() CloseBtn.BackgroundColor3 = Color3.fromRGB(240, 80, 80) end)
+CloseBtn.MouseLeave:Connect(function() CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60) end)
+
+-- ==========================================
+--         MINIMIZED FRAME
+-- ==========================================
+
+MinimizedFrame.Name = "MinimizedFrame"
+MinimizedFrame.Parent = ScreenGui
+MinimizedFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+MinimizedFrame.BorderSizePixel = 0
+MinimizedFrame.Position = UDim2.new(0.5, -75, 0, 10)
+MinimizedFrame.Size = UDim2.new(0, 150, 0, 40)
+MinimizedFrame.Active = true
+MinimizedFrame.Draggable = true
+MinimizedFrame.Visible = false
+MinimizedFrame.ZIndex = 2
+
+MinimizedCorner.CornerRadius = UDim.new(0, 10)
+MinimizedCorner.Parent = MinimizedFrame
+
+MinimizedText.Name = "MinimizedText"
+MinimizedText.Parent = MinimizedFrame
+MinimizedText.BackgroundTransparency = 1
+MinimizedText.Size = UDim2.new(1, -35, 1, 0)
+MinimizedText.Position = UDim2.new(0, 5, 0, 0)
+MinimizedText.Font = Enum.Font.GothamBold
+MinimizedText.Text = "✨ Collect"
+MinimizedText.TextColor3 = Color3.fromRGB(120, 220, 255)
+MinimizedText.TextSize = 14
+MinimizedText.TextXAlignment = Enum.TextXAlignment.Left
+MinimizedText.ZIndex = 3
+
+RestoreBtn.Name = "RestoreBtn"
+RestoreBtn.Parent = MinimizedFrame
+RestoreBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 200)
+RestoreBtn.BorderSizePixel = 0
+RestoreBtn.Position = UDim2.new(1, -30, 0.5, -12)
+RestoreBtn.Size = UDim2.new(0, 25, 0, 25)
+RestoreBtn.Font = Enum.Font.GothamBold
+RestoreBtn.Text = "+"
+RestoreBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RestoreBtn.TextSize = 16
+RestoreBtn.ZIndex = 3
+local restoreCorner = Instance.new("UICorner")
+restoreCorner.CornerRadius = UDim.new(0, 5)
+restoreCorner.Parent = RestoreBtn
+RestoreBtn.MouseEnter:Connect(function() RestoreBtn.BackgroundColor3 = Color3.fromRGB(100, 140, 220) end)
+RestoreBtn.MouseLeave:Connect(function() RestoreBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 200) end)
+
+-- ==========================================
+--         BUTTON LOGIC
+-- ==========================================
+
+CollectBtn.MouseButton1Click:Connect(function()
+    teleportAndCollect()
+end)
+
+HeartCollectBtn.MouseButton1Click:Connect(function()
+    if heartCollectActive then
+        stopHeartCollect()
+        HeartCollectBtn.Text = "💖 Fruit Collect: OFF"
+        HeartCollectBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 120)
+    else
+        startHeartCollect()
+        HeartCollectBtn.Text = "💚 Fruit Collect: ON"
+        HeartCollectBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+    end
+end)
+
+ServerHopBtn.MouseButton1Click:Connect(function()
+    serverHop()
+end)
+
+AntiAfkBtn.MouseButton1Click:Connect(function()
+    if antiAfkActive then
+        stopAntiAfk()
+        AntiAfkBtn.Text = "🛡️ Anti-AFK: OFF"
+        AntiAfkBtn.BackgroundColor3 = Color3.fromRGB(120, 80, 180)
+    else
+        startAntiAfk()
+        AntiAfkBtn.Text = "✅ Anti-AFK: ON"
+        AntiAfkBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+    end
+end)
+
+ResetBtn.MouseButton1Click:Connect(function()
+    resetAll(ScreenGui)
+end)
+
+MinimizeBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    MinimizedFrame.Visible = true
+end)
+
+RestoreBtn.MouseButton1Click:Connect(function()
+    MinimizedFrame.Visible = false
+    MainFrame.Visible = true
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+    ScreenGui:Destroy()
+end)
+
+-- ==========================================
+--         AUTO-RUN ON LOAD & RESPAWN
+-- ==========================================
+
+teleportAndCollect()
+
+local respawnConnection = player.CharacterAdded:Connect(function()
+    task.wait(0.1)
+    teleportAndCollect()
+end)
+table.insert(scriptConnections, respawnConnection)
+
+print("✅ Merged script loaded!")
+print("   - ✨ Collect: Teleport + Hold E")
+print("   - 💖 Fruit Collect: Toggle auto-collect for fruits")
+print("   - 🔄 Server Hop: Jump to a new server")
+print("   - 🛡️ Anti-AFK: Toggle idle kick prevention")
+print("   - ⛔ Reset All: Stop all scripts + close GUI")
