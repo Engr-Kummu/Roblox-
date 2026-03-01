@@ -1,0 +1,389 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+local Config = {
+    AimbotEnabled = false,
+    AimKey = Enum.UserInputType.MouseButton2,
+    ESP_Box = false,
+    ESP_Line = false,
+    ESP_Health = false,
+    ESP_Skeleton = false,
+    ESP_Chams = false,
+    TeamCheck = true,
+}
+
+local AimbotTarget = nil
+local isAiming = false
+
+pcall(function()
+    CoreGui:FindFirstChild("MinimalCombatGUI"):Destroy()
+    RunService:UnbindFromRenderStep("MinimalCombatLoop")
+end)
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "MinimalCombatGUI"
+gui.ResetOnSpawn = false
+gui.Parent = (gethui and gethui()) or CoreGui
+
+local ToggleMenuBtn = Instance.new("TextButton")
+ToggleMenuBtn.Size = UDim2.new(0, 120, 0, 30)
+ToggleMenuBtn.Position = UDim2.new(0, 20, 0, 20)
+ToggleMenuBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+ToggleMenuBtn.BackgroundTransparency = 0.2
+ToggleMenuBtn.BorderSizePixel = 2
+ToggleMenuBtn.BorderColor3 = Color3.fromRGB(255, 60, 60)
+ToggleMenuBtn.Text = "Toggle Menu"
+ToggleMenuBtn.TextColor3 = Color3.fromRGB(255, 60, 60)
+ToggleMenuBtn.Font = Enum.Font.Code
+ToggleMenuBtn.TextSize = 14
+ToggleMenuBtn.Parent = gui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 220, 0, 340)
+MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainFrame.BackgroundTransparency = 0.2
+MainFrame.BorderSizePixel = 2
+MainFrame.BorderColor3 = Color3.fromRGB(255, 60, 60)
+MainFrame.Parent = gui
+
+ToggleMenuBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundTransparency = 1
+Title.Text = "  COMBAT MENU"
+Title.TextColor3 = Color3.fromRGB(255, 60, 60)
+Title.Font = Enum.Font.Code
+Title.TextSize = 16
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = MainFrame
+
+local UIList = Instance.new("UIListLayout")
+UIList.Parent = MainFrame
+UIList.Padding = UDim.new(0, 5)
+UIList.SortOrder = Enum.SortOrder.LayoutOrder
+
+local spacer = Instance.new("Frame")
+spacer.Size = UDim2.new(1, 0, 0, 30)
+spacer.BackgroundTransparency = 1
+spacer.LayoutOrder = 0
+spacer.Parent = MainFrame
+
+local dragging, dragInput, dragStart, startPos
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input == dragInput then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+local layoutCounter = 1
+local function createToggle(name, configKey)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 25)
+    btn.Position = UDim2.new(0, 5, 0, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    btn.BorderSizePixel = 1
+    btn.BorderColor3 = Color3.fromRGB(60, 60, 60)
+    btn.Text = " [ ] " .. name
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btn.Font = Enum.Font.Code
+    btn.TextSize = 14
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.LayoutOrder = layoutCounter
+    btn.Parent = MainFrame
+    layoutCounter = layoutCounter + 1
+
+    btn.MouseButton1Click:Connect(function()
+        Config[configKey] = not Config[configKey]
+        btn.Text = Config[configKey] and " [X] " .. name or " [ ] " .. name
+        btn.TextColor3 = Config[configKey] and Color3.fromRGB(255, 60, 60) or Color3.fromRGB(200, 200, 200)
+        btn.BorderColor3 = Config[configKey] and Color3.fromRGB(255, 60, 60) or Color3.fromRGB(60, 60, 60)
+    end)
+    return btn
+end
+
+createToggle("Aimbot Enabled", "AimbotEnabled")
+createToggle("Team Check", "TeamCheck")
+createToggle("ESP Boxes", "ESP_Box")
+createToggle("ESP Lines", "ESP_Line")
+createToggle("ESP Health", "ESP_Health")
+createToggle("ESP Skeleton", "ESP_Skeleton")
+createToggle("ESP Chams", "ESP_Chams")
+
+local keyBtn = Instance.new("TextButton")
+keyBtn.Size = UDim2.new(1, -10, 0, 25)
+keyBtn.Position = UDim2.new(0, 5, 0, 0)
+keyBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+keyBtn.BorderSizePixel = 1
+keyBtn.BorderColor3 = Color3.fromRGB(60, 60, 60)
+keyBtn.Text = " Aim Key: RightClick"
+keyBtn.TextColor3 = Color3.fromRGB(255, 200, 0)
+keyBtn.Font = Enum.Font.Code
+keyBtn.TextSize = 14
+keyBtn.TextXAlignment = Enum.TextXAlignment.Left
+keyBtn.LayoutOrder = layoutCounter
+keyBtn.Parent = MainFrame
+
+local listening = false
+keyBtn.MouseButton1Click:Connect(function()
+    listening = true
+    keyBtn.Text = " Press any key..."
+end)
+
+UserInputService.InputBegan:Connect(function(input)
+    if listening then
+        local key = input.KeyCode == Enum.KeyCode.Unknown and input.UserInputType or input.KeyCode
+        Config.AimKey = key
+        keyBtn.Text = " Aim Key: " .. key.Name
+        listening = false
+    else
+        if input.UserInputType == Config.AimKey or input.KeyCode == Config.AimKey then
+            isAiming = true
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Config.AimKey or input.KeyCode == Config.AimKey then
+        isAiming = false
+        AimbotTarget = nil
+    end
+end)
+
+local function isSameTeam(player)
+    if not Config.TeamCheck then return false end
+    if player.Team == LocalPlayer.Team then return true end
+    return false
+end
+
+local function getClosestToMouse()
+    local closest, minDistance = nil, math.huge
+    local mousePos = UserInputService:GetMouseLocation()
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and not isSameTeam(player) then
+            local char = player.Character
+            if char and char:FindFirstChild("Head") and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0 then
+                local pos, onScreen = Camera:WorldToViewportPoint(char.Head.Position)
+                if onScreen then
+                    local dist = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                    if dist < minDistance then
+                        minDistance = dist
+                        closest = char.Head
+                    end
+                end
+            end
+        end
+    end
+    return closest
+end
+
+local ESP_Cache = {}
+
+local function createDrawing(type)
+    local obj = Drawing.new(type)
+    obj.Visible = false
+    if type == "Line" then obj.Thickness = 1.5 end
+    if type == "Square" then obj.Thickness = 1.5; obj.Filled = false end
+    return obj
+end
+
+local function setupESP(player)
+    if ESP_Cache[player] then return end
+    ESP_Cache[player] = {
+        Box = createDrawing("Square"),
+        HealthBarBG = createDrawing("Line"),
+        HealthBar = createDrawing("Line"),
+        Tracer = createDrawing("Line"),
+        Bones = {
+            createDrawing("Line"), createDrawing("Line"), createDrawing("Line"),
+            createDrawing("Line"), createDrawing("Line"), createDrawing("Line")
+        },
+        Cham = nil
+    }
+    
+    ESP_Cache[player].Box.Color = Color3.fromRGB(255, 255, 255)
+    ESP_Cache[player].HealthBarBG.Color = Color3.fromRGB(0, 0, 0)
+    ESP_Cache[player].HealthBarBG.Thickness = 3
+    ESP_Cache[player].HealthBar.Color = Color3.fromRGB(0, 255, 0)
+    ESP_Cache[player].Tracer.Color = Color3.fromRGB(255, 60, 60)
+    for _, bone in pairs(ESP_Cache[player].Bones) do bone.Color = Color3.fromRGB(255, 255, 255) end
+end
+
+local function removeESP(player)
+    if ESP_Cache[player] then
+        ESP_Cache[player].Box:Remove()
+        ESP_Cache[player].HealthBarBG:Remove()
+        ESP_Cache[player].HealthBar:Remove()
+        ESP_Cache[player].Tracer:Remove()
+        for _, bone in pairs(ESP_Cache[player].Bones) do bone:Remove() end
+        if ESP_Cache[player].Cham then ESP_Cache[player].Cham:Destroy() end
+        ESP_Cache[player] = nil
+    end
+end
+
+Players.PlayerAdded:Connect(setupESP)
+Players.PlayerRemoving:Connect(removeESP)
+for _, p in pairs(Players:GetPlayers()) do
+    if p ~= LocalPlayer then
+        setupESP(p)
+    end
+end
+
+RunService:BindToRenderStep("MinimalCombatLoop", Enum.RenderPriority.Camera.Value + 1, function()
+    if Config.AimbotEnabled and isAiming then
+        AimbotTarget = getClosestToMouse()
+        if AimbotTarget then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, AimbotTarget.Position)
+        end
+    else
+        AimbotTarget = nil
+    end
+
+    for player, esp in pairs(ESP_Cache) do
+        local char = player.Character
+        local hum = char and char:FindFirstChild("Humanoid")
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        
+        if char and hum and hum.Health > 0 and hrp and not isSameTeam(player) then
+            local rootPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            local headPos = Camera:WorldToViewportPoint(char:FindFirstChild("Head") and char.Head.Position + Vector3.new(0, 0.5, 0) or hrp.Position)
+            local legPos = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
+
+            if onScreen then
+                local boxHeight = math.abs(headPos.Y - legPos.Y)
+                local boxWidth = boxHeight / 2
+                local boxPosition = Vector2.new(rootPos.X - boxWidth / 2, headPos.Y)
+
+                if Config.ESP_Box then
+                    esp.Box.Size = Vector2.new(boxWidth, boxHeight)
+                    esp.Box.Position = boxPosition
+                    esp.Box.Visible = true
+                else
+                    esp.Box.Visible = false
+                end
+
+                if Config.ESP_Health then
+                    local healthPct = hum.Health / hum.MaxHealth
+                    esp.HealthBarBG.From = Vector2.new(boxPosition.X - 5, boxPosition.Y + boxHeight)
+                    esp.HealthBarBG.To = Vector2.new(boxPosition.X - 5, boxPosition.Y)
+                    esp.HealthBarBG.Visible = true
+
+                    esp.HealthBar.From = Vector2.new(boxPosition.X - 5, boxPosition.Y + boxHeight)
+                    esp.HealthBar.To = Vector2.new(boxPosition.X - 5, boxPosition.Y + boxHeight - (boxHeight * healthPct))
+                    esp.HealthBar.Color = Color3.fromRGB(255 - (healthPct * 255), healthPct * 255, 0)
+                    esp.HealthBar.Visible = true
+                else 
+                    esp.HealthBarBG.Visible = false
+                    esp.HealthBar.Visible = false 
+                end
+
+                if Config.ESP_Line then
+                    esp.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                    esp.Tracer.To = Vector2.new(rootPos.X, legPos.Y)
+                    esp.Tracer.Visible = true
+                else
+                    esp.Tracer.Visible = false
+                end
+
+                if Config.ESP_Skeleton then
+                    local function drawBone(index, p1Name, p2Name)
+                        local p1 = char:FindFirstChild(p1Name)
+                        local p2 = char:FindFirstChild(p2Name)
+                        if p1 and p2 then
+                            local s1, o1 = Camera:WorldToViewportPoint(p1.Position)
+                            local s2, o2 = Camera:WorldToViewportPoint(p2.Position)
+                            if o1 and o2 then
+                                esp.Bones[index].From = Vector2.new(s1.X, s1.Y)
+                                esp.Bones[index].To = Vector2.new(s2.X, s2.Y)
+                                esp.Bones[index].Visible = true
+                                return
+                            end
+                        end
+                        esp.Bones[index].Visible = false
+                    end
+                    
+                    drawBone(1, "Head", "UpperTorso")
+                    if not char:FindFirstChild("UpperTorso") then
+                        drawBone(1, "Head", "Torso")
+                    end
+                    
+                    local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+                    if torso then
+                        drawBone(2, torso.Name, char:FindFirstChild("LeftUpperArm") and "LeftUpperArm" or "Left Arm")
+                        drawBone(3, torso.Name, char:FindFirstChild("RightUpperArm") and "RightUpperArm" or "Right Arm")
+                        drawBone(4, torso.Name, char:FindFirstChild("LeftUpperLeg") and "LeftUpperLeg" or "Left Leg")
+                        drawBone(5, torso.Name, char:FindFirstChild("RightUpperLeg") and "RightUpperLeg" or "Right Leg")
+                    end
+                else
+                    for _, bone in pairs(esp.Bones) do
+                        bone.Visible = false
+                    end
+                end
+
+                if Config.ESP_Chams then
+                    if not esp.Cham or esp.Cham.Parent ~= char then
+                        if esp.Cham then esp.Cham:Destroy() end
+                        esp.Cham = Instance.new("Highlight")
+                        esp.Cham.FillTransparency = 0.5
+                        esp.Cham.OutlineTransparency = 0
+                        esp.Cham.FillColor = Color3.fromRGB(255, 60, 60)
+                        esp.Cham.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        esp.Cham.Parent = char
+                    end
+                    esp.Cham.Enabled = true
+                else
+                    if esp.Cham then
+                        esp.Cham.Enabled = false
+                    end
+                end
+            else
+                esp.Box.Visible = false
+                esp.HealthBarBG.Visible = false
+                esp.HealthBar.Visible = false
+                esp.Tracer.Visible = false
+                for _, bone in pairs(esp.Bones) do
+                    bone.Visible = false
+                end
+            end
+        else
+            esp.Box.Visible = false
+            esp.HealthBarBG.Visible = false
+            esp.HealthBar.Visible = false
+            esp.Tracer.Visible = false
+            for _, bone in pairs(esp.Bones) do
+                bone.Visible = false
+            end
+            if esp.Cham then
+                esp.Cham.Enabled = false
+            end
+        end
+    end
+end)
