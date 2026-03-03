@@ -1494,21 +1494,19 @@ RunKeySystem(function()
 
     print("[BrandiesHub] Loaded successfully. New: Silent Aim | Hitbox Expander | Skeleton ESP | Health Bar ESP")
 end)
--- [[ SMART TELEPORT HANDLER ]]
+-- [[ MANUAL TELEPORT HANDLER ]]
 local queueFunction = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
 
 if queueFunction then
-    -- Capture the current game's ID
-    local currentGameId = game.GameId 
+    -- MANUALLY ADD THE RIVALS GAME ID HERE:
+    local RIVALS_GAME_ID = 17625359962 -- <--- Change this number!
 
-    -- Create a string that checks the ID before running the loadstring
-    local smartQueue = string.format([[
-        -- Wait for the game to load enough to check its ID
-        task.wait(1) 
-        if game.GameId == %d then
+    local queueCode = [[
+        task.wait(2) -- Give the new server a moment to load
+        if game.GameId == ]] .. tostring(RIVALS_GAME_ID) .. [[ then
             loadstring(game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/main/Rivals.lua"))()
         end
-    ]], currentGameId)
+    ]]
 
-    queueFunction(smartQueue)
+    queueFunction(queueCode)
 end
