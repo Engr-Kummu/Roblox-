@@ -9,14 +9,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 
 local LocalPlayer = Players.LocalPlayer
 local isMobile = UserInputService.TouchEnabled
--- [[ TELEPORT HANDLER ]]
-local queueFunction = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
 
-if queueFunction then
-    queueFunction([[
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/main/Rivals.lua"))()
-    ]])
-end
 
 -- [[ SAFE UI PARENTING ]]
 local function getSafeUIParent()
@@ -1501,3 +1494,21 @@ RunKeySystem(function()
 
     print("[BrandiesHub] Loaded successfully. New: Silent Aim | Hitbox Expander | Skeleton ESP | Health Bar ESP")
 end)
+-- [[ SMART TELEPORT HANDLER ]]
+local queueFunction = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
+
+if queueFunction then
+    -- Capture the current game's ID
+    local currentGameId = game.GameId 
+
+    -- Create a string that checks the ID before running the loadstring
+    local smartQueue = string.format([[
+        -- Wait for the game to load enough to check its ID
+        task.wait(1) 
+        if game.GameId == %d then
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/main/Rivals.lua"))()
+        end
+    ]], currentGameId)
+
+    queueFunction(smartQueue)
+end
