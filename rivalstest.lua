@@ -2,7 +2,7 @@ repeat task.wait() until game:IsLoaded()
 repeat task.wait() until game.GameId > 0
 
 -- MANUALLY ADD RIVALS GAME ID HERE (Run `print(game.GameId)` in Rivals to find it!)
-local RIVALS_GAME_ID = 1234567890 
+local RIVALS_GAME_ID = 17625359962 
 
 -- If we teleported into a completely different game, quietly kill the script
 if game.GameId ~= RIVALS_GAME_ID then 
