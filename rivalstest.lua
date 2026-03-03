@@ -1,3 +1,28 @@
+repeat task.wait() until game:IsLoaded()
+repeat task.wait() until game.GameId > 0
+
+-- MANUALLY ADD RIVALS GAME ID HERE (Run `print(game.GameId)` in Rivals to find it!)
+local RIVALS_GAME_ID = 1234567890 
+
+-- If we teleported into a completely different game, quietly kill the script
+if game.GameId ~= RIVALS_GAME_ID then 
+    return 
+end
+
+-- Safely queue the script for the next Rivals teleport
+local queueFunction = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
+if queueFunction then
+    queueFunction([[
+        task.spawn(function()
+            repeat task.wait() until game:IsLoaded()
+            pcall(function()
+                local code = game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/main/Rivals.lua")
+                local func = loadstring(code)
+                if func then func() end
+            end)
+        end)
+    ]])
+end
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -1494,19 +1519,3 @@ RunKeySystem(function()
 
     print("[BrandiesHub] Loaded successfully. New: Silent Aim | Hitbox Expander | Skeleton ESP | Health Bar ESP")
 end)
--- [[ MANUAL TELEPORT HANDLER ]]
-local queueFunction = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
-
-if queueFunction then
-    -- MANUALLY ADD THE RIVALS GAME ID HERE:
-    local RIVALS_GAME_ID = 17625359962 -- <--- Change this number!
-
-    local queueCode = [[
-        task.wait(2) -- Give the new server a moment to load
-        if game.GameId == ]] .. tostring(RIVALS_GAME_ID) .. [[ then
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/main/Rivals.lua"))()
-        end
-    ]]
-
-    queueFunction(queueCode)
-end
