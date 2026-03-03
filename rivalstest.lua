@@ -1,34 +1,69 @@
--- Wait for the game to fully load to prevent the "nil value" crash
-repeat task.wait() until game:IsLoaded()
-repeat task.wait() until game.GameId > 0
+-- ══════════════════════════════════════════════════════════════
+-- BRANDIES PREMIUM  —  AUTO-EXECUTE GUARD
+-- Only runs on Rivals (PlaceId 17625359962).
+-- Safe to put in your executor auto-execute folder — it will
+-- silently do nothing in every other game.
+-- On server hop Roblox teleports you to a new server in the
+-- SAME place, so the guard stays true and the hub reloads.
+-- ══════════════════════════════════════════════════════════════
 
--- MANUALLY ADD RIVALS GAME ID HERE (Run `print(game.GameId)` in Rivals to find it!)
-local RIVALS_GAME_ID = 17625359962 
+local RIVALS_PLACE_ID = 17625359962
 
--- If we teleported into a completely different game, quietly kill the script
-if game.GameId ~= RIVALS_GAME_ID then 
-    return 
+-- ── PLACE CHECK ─────────────────────────────────────────────
+-- game.PlaceId is always available immediately, no wait needed.
+if game.PlaceId ~= RIVALS_PLACE_ID then
+    -- Not Rivals — exit silently, nothing loads.
+    return
 end
 
--- Safely queue the script for the next Rivals teleport
-local queueFunction = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
-if queueFunction then
-    queueFunction([[
-        task.spawn(function()
-            repeat task.wait() until game:IsLoaded()
-            pcall(function()
-                local code = game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/main/Rivals.lua")
-                local func = loadstring(code)
-                if func then func() end
-            end)
-        end)
-    ]])
+-- ── PREVENT DOUBLE-LOAD IN THE SAME SESSION ─────────────────
+-- If the hub already loaded this session (e.g. executor ran
+-- the script twice manually) skip re-initialisation.
+if _G.BrandiesRivalsLoaded then
+    print("[BrandiesHub] Already loaded this session, skipping.")
+    return
 end
--- ==========================================
--- || 1. NORMAL HUB CODE STARTS BELOW      ||
--- ==========================================
+_G.BrandiesRivalsLoaded = true
+
+-- ── SERVER-HOP WATCHER ──────────────────────────────────────
+-- When Roblox teleports you to a new server (server hop /
+-- rejoin), the game instance reloads completely. The executor's
+-- auto-execute fires again, PlaceId is still Rivals → hub loads.
+-- Nothing special needed for that path.
+--
+-- However some teleport methods fire Players.LocalPlayer.OnTeleport
+-- before the session ends. We listen for it so we can cleanly
+-- tear down our Drawing objects before the session closes,
+-- preventing visual artifacts on the loading screen.
 local Players = game:GetService("Players")
--- (The rest of your code goes here)
+local TeleportService = game:GetService("TeleportService")
+local LocalPlayer = Players.LocalPlayer
+
+task.spawn(function()
+    -- Wait for teleport signal; when fired we reset the loaded flag
+    -- so the guard lets the hub reload in the new server.
+    local ok, conn = pcall(function()
+        return LocalPlayer.OnTeleport:Connect(function(state)
+            if state == Enum.TeleportState.Started then
+                -- Reset flag so next session re-initialises cleanly
+                _G.BrandiesRivalsLoaded = false
+                _G.BrandiesKeyVerified  = false
+                -- Disconnect render loop if it exists
+                if _G.RenderLoop then
+                    pcall(function() _G.RenderLoop:Disconnect() end)
+                    _G.RenderLoop = nil
+                end
+            end
+        end)
+    end)
+    -- If OnTeleport isn't available on this executor, that's fine —
+    -- the auto-execute path still handles reload correctly.
+end)
+
+-- ════════════════════════════════════════════════════════════
+-- MAIN SCRIPT BELOW  (unchanged — only loaded on Rivals)
+-- ════════════════════════════════════════════════════════════
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -1525,20 +1560,3 @@ RunKeySystem(function()
 
     print("[BrandiesHub] Loaded successfully. New: Silent Aim | Hitbox Expander | Skeleton ESP | Health Bar ESP")
 end)
-
--- [[ MANUAL TELEPORT HANDLER ]]
-local queueFunction = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
-
-if queueFunction then
-    -- MANUALLY ADD THE RIVALS GAME ID HERE:
-    local RIVALS_GAME_ID = 17625359962 -- <--- Change this number!
-
-    local queueCode = [[
-        task.wait(2) -- Give the new server a moment to load
-        if game.GameId == ]] .. tostring(RIVALS_GAME_ID) .. [[ then
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/refs/heads/main/rivalstest.lua"))()
-        end
-    ]]
-
-    queueFunction(queueCode)
-end
