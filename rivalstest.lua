@@ -1,30 +1,39 @@
--- [[ BULLETPROOF TELEPORT HANDLER ]]
-local queueFunction = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
+-- ==========================================
+-- || 0. SMART TELEPORT & GAME CHECK       ||
+-- ==========================================
 
-if queueFunction then
-    -- Dynamically grab the GameId of Rivals while we are in it
-    local currentUniverseId = game.GameId 
+-- Wait for the game to fully load to prevent the "nil value" crash
+repeat task.wait() until game:IsLoaded()
+repeat task.wait() until game.GameId > 0
 
-    -- Pass that specific ID directly into the queued string
-    local queueCode = string.format([[
-        task.spawn(function()
-            -- 1. Wait for the game to fully load to prevent the 'nil value' network crash
-            repeat task.wait() until game:IsLoaded()
-            task.wait(1) 
+-- MANUALLY ADD RIVALS GAME ID HERE (Run `print(game.GameId)` in Rivals to find it!)
+local RIVALS_GAME_ID = 17625359962 
 
-            -- 2. Check if the new game is STILL Rivals. If it's a different game, do absolutely nothing.
-            if game.GameId == %d then
-                pcall(function()
-                    local source = game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/refs/heads/main/rivalstest.lua")
-                    local func = loadstring(source)
-                    if func then func() end
-                end)
-            end
-        end)
-    ]], currentUniverseId)
-
-    queueFunction(queueCode)
+-- If we teleported into a completely different game, quietly kill the script
+if game.GameId ~= RIVALS_GAME_ID then 
+    return 
 end
+
+-- Safely queue the script for the next Rivals teleport
+local queueFunction = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
+if queueFunction then
+    queueFunction([[
+        task.spawn(function()
+            repeat task.wait() until game:IsLoaded()
+            pcall(function()
+                local code = game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/main/Rivals.lua")
+                local func = loadstring(code)
+                if func then func() end
+            end)
+        end)
+    ]])
+end
+
+-- ==========================================
+-- || 1. NORMAL HUB CODE STARTS BELOW      ||
+-- ==========================================
+local Players = game:GetService("Players")
+-- (The rest of your code goes here)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
