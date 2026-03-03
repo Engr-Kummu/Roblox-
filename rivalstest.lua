@@ -1,22 +1,25 @@
+-- Wait for the game to fully load to prevent the "nil value" crash
 repeat task.wait() until game:IsLoaded()
 repeat task.wait() until game.GameId > 0
 
--- Paste the number you got from Step 1 right here:
+-- MANUALLY ADD RIVALS GAME ID HERE (Run `print(game.GameId)` in Rivals to find it!)
 local RIVALS_GAME_ID = 17625359962 
 
--- If we are in any game other than Rivals, self-destruct instantly.
-if game.GameId ~= RIVALS_GAME_ID then
+-- If we teleported into a completely different game, quietly kill the script
+if game.GameId ~= RIVALS_GAME_ID then 
     return 
 end
 
--- If we ARE in Rivals, queue the script so it follows you into matches.
+-- Safely queue the script for the next Rivals teleport
 local queueFunction = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
 if queueFunction then
     queueFunction([[
         task.spawn(function()
             repeat task.wait() until game:IsLoaded()
             pcall(function()
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/refs/heads/main/rivalstest.lua"))()
+                local code = game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/main/Rivals.lua")
+                local func = loadstring(code)
+                if func then func() end
             end)
         end)
     ]])
