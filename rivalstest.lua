@@ -1,4 +1,11 @@
+local RivalsUniverseId = 6035872082 -- REPLACE THIS with the number you found in Step 1
 
+-- If the current game is not Rivals, kill the script instantly
+if game.GameId ~= RivalsUniverseId then 
+    return 
+end
+
+-- [The rest of your script / loader goes here]
 -- ════════════════════════════════════════════════════════════
 -- MAIN SCRIPT BELOW  (unchanged — only loaded on Rivals)
 -- ════════════════════════════════════════════════════════════
