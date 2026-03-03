@@ -1,3 +1,26 @@
+repeat task.wait() until game:IsLoaded()
+repeat task.wait() until game.GameId > 0
+
+-- Paste the number you got from Step 1 right here:
+local RIVALS_GAME_ID = 17625359962 
+
+-- If we are in any game other than Rivals, self-destruct instantly.
+if game.GameId ~= RIVALS_GAME_ID then
+    return 
+end
+
+-- If we ARE in Rivals, queue the script so it follows you into matches.
+local queueFunction = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
+if queueFunction then
+    queueFunction([[
+        task.spawn(function()
+            repeat task.wait() until game:IsLoaded()
+            pcall(function()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/main/Rivals.lua"))()
+            end)
+        end)
+    ]])
+end
 -- ==========================================
 -- || 1. NORMAL HUB CODE STARTS BELOW      ||
 -- ==========================================
