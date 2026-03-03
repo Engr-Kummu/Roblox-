@@ -21,7 +21,7 @@ if queueFunction then
         task.spawn(function()
             repeat task.wait() until game:IsLoaded()
             pcall(function()
-                local code = game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/main/Rivals.lua")
+                local code = game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/refs/heads/main/rivalstest.lua")
                 local func = loadstring(code)
                 if func then func() end
             end)
