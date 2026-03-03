@@ -1499,3 +1499,7 @@ RunKeySystem(function()
 
     print("[BrandiesHub] Loaded successfully. New: Silent Aim | Hitbox Expander | Skeleton ESP | Health Bar ESP")
 end)
+local queue_on_teleport = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
+if queue_on_teleport then
+    queue_on_teleport('loadstring(game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/refs/heads/main/rivalstest.lua"))()')
+end
