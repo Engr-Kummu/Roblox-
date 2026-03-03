@@ -1,3 +1,30 @@
+-- [[ BULLETPROOF TELEPORT HANDLER ]]
+local queueFunction = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
+
+if queueFunction then
+    -- Dynamically grab the GameId of Rivals while we are in it
+    local currentUniverseId = game.GameId 
+
+    -- Pass that specific ID directly into the queued string
+    local queueCode = string.format([[
+        task.spawn(function()
+            -- 1. Wait for the game to fully load to prevent the 'nil value' network crash
+            repeat task.wait() until game:IsLoaded()
+            task.wait(1) 
+
+            -- 2. Check if the new game is STILL Rivals. If it's a different game, do absolutely nothing.
+            if game.GameId == %d then
+                pcall(function()
+                    local source = game:HttpGet("https://raw.githubusercontent.com/Engr-Kummu/Roblox-/refs/heads/main/rivalstest.lua")
+                    local func = loadstring(source)
+                    if func then func() end
+                end)
+            end
+        end)
+    ]], currentUniverseId)
+
+    queueFunction(queueCode)
+end
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
